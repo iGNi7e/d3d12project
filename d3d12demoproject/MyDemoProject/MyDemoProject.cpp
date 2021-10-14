@@ -1,142 +1,67 @@
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#include <shellapi.h> // For CommandLineToArgvW
 
-#include <windows.h> // for XMVerifyCPUSupport
+// The min/max macros conflict with like-named member functions.
+// Only use std::min and std::max defined in <algorithm>.
+#if defined(min)
+#undef min
+#endif
+
+#if defined(max)
+#undef max
+#endif
+
+// In order to define a function called CreateWindow, the Windows macro needs to
+// be undefined.
+#if defined(CreateWindow)
+#undef CreateWindow
+#endif
+
+// Windows Runtime Library. Needed for Microsoft::WRL::ComPtr<> template class.
+#include <wrl.h>
+using namespace Microsoft::WRL;
+
+// DirectX 12 specific headers.
+#include <d3d12.h>
+#include <dxgi1_6.h>
+#include <d3dcompiler.h>
 #include <DirectXMath.h>
-#include <DirectXPackedVector.h>
-#include <iostream>
-using namespace std;
-using namespace DirectX;
-using namespace DirectX::PackedVector;
 
-// Overload the  "<<" operators so that we can use cout to 
-// output XMVECTOR objects.
-ostream& XM_CALLCONV operator << (ostream& os, FXMVECTOR v)
-{
-    XMFLOAT3 dest;
-    XMStoreFloat3(&dest, v);
+// D3D12 extension library.
+#include "d3dx12.h"
 
-    os << "(" << dest.x << ", " << dest.y << ", " << dest.z << ")";
-    return os;
-}
+// STL Headers
+#include <algorithm>
+#include <cassert>
+#include <chrono>
 
-void Example1()
-{
-    cout.setf(ios_base::boolalpha);
+// Helper functions
+#include "Helpers.h"
 
-    // Check support for SSE2 (Pentium4, AMD K8, and above).
-    if (!XMVerifyCPUSupport())
-    {
-        cout << "directx math not supported" << endl;
-        return;
-    }
 
-    XMVECTOR n = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-    XMVECTOR u = XMVectorSet(1.0f, 2.0f, 3.0f, 0.0f);
-    XMVECTOR v = XMVectorSet(-2.0f, 1.0f, -3.0f, 0.0f);
-    XMVECTOR w = XMVectorSet(0.707f, 0.707f, 0.0f, 0.0f);
+// The number of swap chain back buffers.
+const uint8_t g_NumFrames = 3;
+// Use WARP adapter
+bool g_UseWarp = false;
 
-    // Vector addition: XMVECTOR operator + 
-    XMVECTOR a = u + v;
+uint32_t g_ClientWidth = 1280;
+uint32_t g_ClientHeight = 720;
 
-    // Vector subtraction: XMVECTOR operator - 
-    XMVECTOR b = u - v;
-
-    // Scalar multiplication: XMVECTOR operator * 
-    XMVECTOR c = 10.0f * u;
-
-    // ||u||
-    XMVECTOR L = XMVector3Length(u);
-
-    // d = u / ||u||
-    XMVECTOR d = XMVector3Normalize(u);
-
-    // s = u dot v
-    XMVECTOR s = XMVector3Dot(u, v);
-
-    // e = u x v
-    XMVECTOR e = XMVector3Cross(u, v);
-
-    // Find proj_n(w) and perp_n(w)
-    XMVECTOR projW;
-    XMVECTOR perpW;
-    XMVector3ComponentsFromNormal(&projW, &perpW, w, n);
-
-    // Does projW + perpW == w?
-    bool equal = XMVector3Equal(projW + perpW, w) != 0;
-    bool notEqual = XMVector3NotEqual(projW + perpW, w) != 0;
-
-    // The angle between projW and perpW should be 90 degrees.
-    XMVECTOR angleVec = XMVector3AngleBetweenVectors(projW, perpW);
-    float angleRadians = XMVectorGetX(angleVec);
-    float angleDegrees = XMConvertToDegrees(angleRadians);
-
-    cout << "u                   = " << u << endl;
-    cout << "v                   = " << v << endl;
-    cout << "w                   = " << w << endl;
-    cout << "n                   = " << n << endl;
-    cout << "a = u + v           = " << a << endl;
-    cout << "b = u - v           = " << b << endl;
-    cout << "c = 10 * u          = " << c << endl;
-    cout << "d = u / ||u||       = " << d << endl;
-    cout << "e = u x v           = " << e << endl;
-    cout << "L  = ||u||          = " << L << endl;
-    cout << "s = u.v             = " << s << endl;
-    cout << "projW               = " << projW << endl;
-    cout << "perpW               = " << perpW << endl;
-    cout << "projW + perpW == w  = " << equal << endl;
-    cout << "projW + perpW != w  = " << notEqual << endl;
-    cout << "angle               = " << angleDegrees << endl;
-
-}
-
-void Example2()
-{
-    cout.precision(8);
-    // Check support for SSE2 (Pentium4, AMD K8, and above).
-    if (!XMVerifyCPUSupport())
-    {
-        cout << "directx math not supported" << endl;
-        return;
-    }
-    XMVECTOR u = XMVectorSet(1.0f, 1.0f, 1.0f, 0.0f);
-    XMVECTOR n = XMVector3Normalize(u);
-    float LU = XMVectorGetX(XMVector3Length(n));
-    // Mathematically, the length should be 1. Is it numerically ?
-    cout << LU << endl;
-    if (LU == 1.0f)
-        cout << "“Length 1" << endl;
-    else
-        cout << "Length not 1" << endl;
-    // Raising 1 to any power should still be 1. Is it?
-    float powLU = powf(LU, 1.0e6f);
-    cout << "LU ^ (10 ^ 6) = " << powLU << endl;
-}
-
-void Exercise()
-{
-    cout.setf(ios_base::boolalpha);
-
-    // Check support for SSE2 (Pentium4, AMD K8, and above).
-    if (!XMVerifyCPUSupport())
-    {
-        cout << "directx math not supported" << endl;
-        return;
-    }
-    XMVECTOR u = XMVectorSet(1, 2,0,0);
-    XMVECTOR v = XMVectorSet(3, -4,0,0);
-	
-    XMVECTOR sum = u + v;
-    std::cout << sum << endl;
-	
-    XMVECTOR negativeSum = u - v;;
-    std::cout << negativeSum << endl;
-
-    XMVECTOR expression1 = 2 * u + v / 2;
-    std::cout << expression1 << endl;
-}
+// Set to true once the DX12 objects have been initialized.
+bool g_IsInitialized = false;
 
 int main()
 {
-    Exercise();
-
 	return 0;
+}
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
+	PSTR cmdLine, int showCmd)
+{
+	// Enable run-time memory check for debug builds.
+#if defined(DEBUG) | defined(_DEBUG)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+	
 }
